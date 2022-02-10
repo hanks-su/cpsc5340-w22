@@ -2,6 +2,10 @@ import os
 from flask import Flask
 from flask import render_template
 import reviews.solrinterface as solr
+from flask import request
+from reviews.forms import ReviewSearchForm
+from flask import redirect
+from flask import *
 
 def create_app(test_config=None):
 	# create and configure the app
@@ -34,9 +38,29 @@ def create_app(test_config=None):
 	def hello(inputName):
 		return render_template('hello.html', tname=inputName)
 
+	@app.route('/testsearch', methods=['GET'])
+	def testsearch():
+		kw = request.args.get('query')
+		sr = solr.review_search(kw, "", 0)
+		return render_template('searchresults.html', res = sr['docs'])
+	
+	@app.route('/search',methods=['GET', 'POST'])
+	def searchForm():
+		form = ReviewSearchForm()
+		if request.method == 'GET':
+			return render_template('reviewsearch.html', form=form)
+		elif not form.validate():
+			return render_template('reviewsearch.html', form=form)
+		else:
+			return redirect(url_for('searchResults', k=form.keywords.data, d=form.scoreDirection.data, t=form.scoreThreshold.data, start=0))
+	
 	@app.route('/searchresults', methods=['GET'])
 	def searchResults():
-		res = solr.test_review_search()
+		k = request.args.get('k')
+		d = request.args.get('d')
+		t = request.args.get('t')
+		start = request.args.get('start')
+		res = solr.review_search(k, d + " " + t, start)
 		if res['numFound'] == 0:
 			r = 'Not found'
 		else:
@@ -45,7 +69,8 @@ def create_app(test_config=None):
 
 	@app.route('/idlookup/<reviewid>', methods=['GET'])
 	def idLookup(reviewid):
-		idDetail = solr.test_id_search('2c7cf845-cb08-4afe-bbba-2f46b467e99c')
+		#idDetail = solr.test_id_search('2c7cf845-cb08-4afe-bbba-2f46b467e99c')
+		idDetail = solr.id_search(reviewid)
 		doc = idDetail['docs'][0]
 		id = doc['id']
 		return render_template('reviewdetail.html', id=id, doc=doc )
